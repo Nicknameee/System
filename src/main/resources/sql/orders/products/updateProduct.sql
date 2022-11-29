@@ -1,0 +1,1 @@
+UPDATE products SET price = ?, amount = ?, available = ?, description = ? WHERE id = ?;

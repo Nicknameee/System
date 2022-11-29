@@ -1,0 +1,1 @@
+INSERT INTO products(name, price, amount, available, description) VALUES(?, ?, ?, ?, ?);

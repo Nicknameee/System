@@ -1,0 +1,1 @@
+UPDATE orders SET order_status = ?, paid = TRUE WHERE id = ?;
