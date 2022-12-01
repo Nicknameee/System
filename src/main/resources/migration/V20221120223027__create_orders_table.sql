@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS orders(
     booking_time TIMESTAMP DEFAULT NOW(),
     delivery_address VARCHAR(255),
     delivery_cost DOUBLE CHECK(delivery_cost >= 0),
-    product_cost DOUBLE CHECK(total_cost >= 0),
+    product_cost DOUBLE CHECK(product_cost >= 0),
     paid BOOLEAN DEFAULT FALSE,
     order_status INT8 NOT NULL
 )
