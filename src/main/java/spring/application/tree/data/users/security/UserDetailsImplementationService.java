@@ -9,19 +9,20 @@ import org.springframework.stereotype.Service;
 import spring.application.tree.data.exceptions.ApplicationException;
 import spring.application.tree.data.users.models.AbstractUserModel;
 import spring.application.tree.data.users.repository.UserDataAccessObject;
+import spring.application.tree.data.users.service.UserService;
 
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class UserDetailsImplementationService implements UserDetailsService {
-    private final UserDataAccessObject userDataAccessObject;
+    private final UserService userService;
 
     @Override
     public UserDetails loadUserByUsername(String login) throws UsernameNotFoundException {
         AbstractUserModel user = null;
         try {
-            user = userDataAccessObject.getUserByLoginCredentials(login);
+            user = userService.getUserByLoginCredentials(login);
         } catch (ApplicationException e) {
             log.error(e.getException(), e);
         }

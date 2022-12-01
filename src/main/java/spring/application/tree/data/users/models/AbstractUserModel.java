@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Objects;
 
 @Data
 @Table(name = "users")
@@ -96,5 +97,20 @@ public class AbstractUserModel implements UserDetails {
     @Override
     public boolean isEnabled() {
         return status == Status.ENABLED;
+    }
+
+    public void mergeChanges(AbstractUserModel abstractUserModel) {
+        if (!Objects.equals(this.id, abstractUserModel.getId())) {
+            return;
+        }
+        if (abstractUserModel.getUsername() != null) {
+            this.username = abstractUserModel.getUsername();
+        }
+        if (abstractUserModel.getPassword() != null) {
+            this.password = DataEncoderTool.encodeData(abstractUserModel.getPassword());
+        }
+        if (abstractUserModel.getTimezone() != null) {
+            this.timezone = abstractUserModel.getTimezone();
+        }
     }
 }
