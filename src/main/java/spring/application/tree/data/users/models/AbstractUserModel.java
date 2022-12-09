@@ -103,9 +103,6 @@ public class AbstractUserModel implements UserDetails {
         if (!Objects.equals(this.id, abstractUserModel.getId())) {
             return;
         }
-        if (abstractUserModel.getUsername() != null) {
-            this.username = abstractUserModel.getUsername();
-        }
         if (abstractUserModel.getPassword() != null) {
             this.password = DataEncoderTool.encodeData(abstractUserModel.getPassword());
         }

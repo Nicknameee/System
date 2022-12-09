@@ -17,6 +17,7 @@ import spring.application.tree.data.orders.models.ProductModel;
 import spring.application.tree.data.orders.repository.mappers.OrderMapper;
 import spring.application.tree.data.orders.repository.mappers.ProductMapper;
 import spring.application.tree.data.utility.loaders.PropertyResourceLoader;
+import spring.application.tree.data.utility.models.TrioValue;
 
 import java.math.BigInteger;
 import java.time.LocalDateTime;
@@ -365,5 +366,46 @@ public class OrderRepository {
             log.error(e.getMessage(), e);
         }
         return result;
+    }
+
+    public List<TrioValue<Integer, String, Integer>> getOrderTakenNumberPerOperator() {
+        String getOrderTakenNumberPerOperatorSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/getOrdersTakenNumberPerOperator.sql");
+        List<TrioValue<Integer, String, Integer>> result = new ArrayList<>();
+        try {
+            jdbcTemplate.query(getOrderTakenNumberPerOperatorSQL, (rs) -> {
+                result.add(new TrioValue<>(rs.getInt("id"), rs.getString("username"), rs.getInt("orders_taken_number")));
+            });
+        } catch (DataAccessException e) {
+            log.error(e.getMessage(), e);
+        }
+        return result;
+    }
+
+    public void assignOrderToOperator(int orderId, int operatorId) throws InvalidAttributesException {
+        if (orderId < 1 || operatorId < 1) {
+            throw new InvalidAttributesException(String.format("Invalid order ID: %s, operator ID: %s", orderId, operatorId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
+        }
+        String assignOrderToOperatorSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/assignOrderToOperator.sql");
+        try {
+            jdbcTemplate.update(assignOrderToOperatorSQL, operatorId, orderId);
+        } catch (DataAccessException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    public void removeOrdersFromOperator(int operatorId, List<Integer> orderIds) throws InvalidAttributesException {
+        if (operatorId < 1 || (orderIds != null && orderIds.isEmpty())) {
+            throw new InvalidAttributesException(String.format("Invalid operator ID: %s, order IDs: %s", operatorId, orderIds), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
+        }
+        ST removeOrdersFromOperatorSQL = PropertyResourceLoader.getSQLScriptTemplate("classpath:/sql/orders/removeOrdersFromOperator.st");
+        removeOrdersFromOperatorSQL.add("operatorId", operatorId);
+        if (orderIds != null) {
+            removeOrdersFromOperatorSQL.add("orderIds", StringUtils.join(orderIds.stream().map(String::valueOf).collect(Collectors.toList()), ','));
+        }
+        try {
+            jdbcTemplate.update(removeOrdersFromOperatorSQL.render());
+        } catch (DataAccessException e) {
+            log.error(e.getMessage(), e);
+        }
     }
 }

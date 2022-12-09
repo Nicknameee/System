@@ -2,10 +2,13 @@ package spring.application.tree.data.orders.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tomcat.util.buf.StringUtils;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.stringtemplate.v4.ST;
 import spring.application.tree.data.exceptions.InvalidAttributesException;
 import spring.application.tree.data.exceptions.NotAllowedException;
 import spring.application.tree.data.orders.attributes.OrderHistoryEvent;
@@ -14,6 +17,8 @@ import spring.application.tree.data.orders.models.OrderModel;
 import spring.application.tree.data.orders.models.ProductModel;
 import spring.application.tree.data.orders.repository.OrderRepository;
 import spring.application.tree.data.statistic.service.StatisticService;
+import spring.application.tree.data.utility.loaders.PropertyResourceLoader;
+import spring.application.tree.data.utility.models.TrioValue;
 
 import java.math.BigInteger;
 import java.time.LocalDateTime;
@@ -149,5 +154,19 @@ public class OrderService {
 
     public Integer countProductsByName(String name) throws InvalidAttributesException {
         return orderRepository.countProductsByName(name);
+    }
+
+    public List<TrioValue<Integer, String, Integer>> getOrderTakenNumberPerOperator() {
+        return orderRepository.getOrderTakenNumberPerOperator();
+    }
+
+    public void assignOrderToOperator(List<Integer> orderIds, int operatorId) throws InvalidAttributesException {
+        for (Integer orderId : orderIds) {
+            orderRepository.assignOrderToOperator(orderId, operatorId);
+        }
+    }
+
+    public void removeOrdersFromOperator(int operatorId, List<Integer> orderIds) throws InvalidAttributesException {
+        orderRepository.removeOrdersFromOperator(operatorId, orderIds);
     }
 }

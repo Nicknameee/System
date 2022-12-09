@@ -1,0 +1,1 @@
+INSERT INTO orders_to_operator(operator_id, order_id) VALUES(?, ?);

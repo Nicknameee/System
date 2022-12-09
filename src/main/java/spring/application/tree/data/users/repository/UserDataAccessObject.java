@@ -2,11 +2,19 @@ package spring.application.tree.data.users.repository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import spring.application.tree.data.exceptions.ApplicationException;
 import spring.application.tree.data.exceptions.InvalidAttributesException;
+import spring.application.tree.data.users.attributes.Role;
+import spring.application.tree.data.users.attributes.Status;
+import spring.application.tree.data.users.models.AbstractCustomerModel;
 import spring.application.tree.data.users.models.AbstractUserModel;
+import spring.application.tree.data.utility.loaders.PropertyResourceLoader;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -17,6 +25,7 @@ import java.util.Optional;
 @Slf4j
 @RequiredArgsConstructor
 public class UserDataAccessObject {
+    private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
     public AbstractUserModel getUserByLoginCredentials(String login) throws ApplicationException {
         if (login == null || login.isEmpty()) {
@@ -46,14 +55,33 @@ public class UserDataAccessObject {
         return userRepository.countAbstractUserModelsWithFollowingUsername(username) == 0;
     }
 
-    public void saveUser(AbstractUserModel abstractUserModel) throws ApplicationException {
+    public AbstractUserModel saveUser(AbstractUserModel abstractUserModel) throws ApplicationException {
         validateUserModel(abstractUserModel);
-        userRepository.save(abstractUserModel);
+        return userRepository.save(abstractUserModel);
     }
 
-    public void updateUser(AbstractUserModel abstractUserModel) throws InvalidAttributesException {
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
+    public void saveCustomer(AbstractCustomerModel abstractCustomerModel) throws InvalidAttributesException {
+        validateUserModel(abstractCustomerModel);
+        String saveUserSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/users/saveUser.sql");
+        String saveCustomerSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/users/saveCustomer.sql");
+        log.debug("Save user query: {}", saveUserSQL);
+        log.debug("Save customer query: {}", saveCustomerSQL);
+        try {
+            Integer userId = jdbcTemplate.queryForObject(saveUserSQL, Integer.class, abstractCustomerModel.getUsername(),
+                                                                                 abstractCustomerModel.getPassword(),
+                                                                                 Role.ROLE_CUSTOMER.ordinal(),
+                                                                                 Status.ENABLED.ordinal(),
+                                                                                 abstractCustomerModel.getTimezone());
+            jdbcTemplate.update(saveCustomerSQL, userId, abstractCustomerModel.getFirstName(), abstractCustomerModel.getLastName(), abstractCustomerModel.getAddress());
+        } catch (DataAccessException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    public AbstractUserModel updateUser(AbstractUserModel abstractUserModel) throws InvalidAttributesException {
         validateUserModel(abstractUserModel);
-        userRepository.save(abstractUserModel);
+        return userRepository.save(abstractUserModel);
     }
 
     public void deleteUserById(Integer id) throws ApplicationException {
