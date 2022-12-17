@@ -1,18 +1,11 @@
 package spring.application.tree;
 
-import org.postgresql.Driver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.jdbc.datasource.SimpleDriverDataSource;
-import org.springframework.util.ClassUtils;
-
-import javax.sql.DataSource;
-import java.lang.reflect.InvocationTargetException;
-import java.util.Objects;
 
 @TestConfiguration
 @PropertySource("classpath:application.properties")
@@ -27,7 +20,7 @@ public class ApplicationTestConfiguration {
     private String password;
 
     @Bean
-    public JdbcTemplate jdbcTemplate() throws IllegalAccessException, InvocationTargetException, InstantiationException {
+    public JdbcTemplate jdbcTemplate() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName(driverClassName);
         dataSource.setUrl(url);

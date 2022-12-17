@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 public enum Role {
     ROLE_ADMIN(Set.of(Permission.ADMIN_PERMISSION)),
     ROLE_SALESMAN(Set.of(Permission.SALESMAN_PERMISSION)),
-    ROLE_ACCOUNTANT(Set.of(Permission.ACCOUNTANT_PERMISSION)),
     ROLE_CUSTOMER(Set.of(Permission.CUSTOMER_PERMISSION));
 
     private final Set<Permission> permissions;

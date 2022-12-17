@@ -2,13 +2,10 @@ package spring.application.tree.data.orders.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.tomcat.util.buf.StringUtils;
-import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.stringtemplate.v4.ST;
 import spring.application.tree.data.exceptions.InvalidAttributesException;
 import spring.application.tree.data.exceptions.NotAllowedException;
 import spring.application.tree.data.orders.attributes.OrderHistoryEvent;
@@ -17,13 +14,17 @@ import spring.application.tree.data.orders.models.OrderModel;
 import spring.application.tree.data.orders.models.ProductModel;
 import spring.application.tree.data.orders.repository.OrderRepository;
 import spring.application.tree.data.statistic.service.StatisticService;
-import spring.application.tree.data.utility.loaders.PropertyResourceLoader;
+import spring.application.tree.data.users.attributes.Role;
+import spring.application.tree.data.users.models.AbstractUserModel;
+import spring.application.tree.data.users.service.UserService;
 import spring.application.tree.data.utility.models.TrioValue;
 
 import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,7 +34,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final StatisticService statisticService;
 
-    public List<OrderModel> getOrdersForCustomer(int customerId) throws InvalidAttributesException {
+    public List<OrderModel> getOrdersForCustomer(Integer customerId) throws InvalidAttributesException, NotAllowedException {
+        if (customerId == null) {
+            AbstractUserModel user = UserService.getCurrentlyAuthenticatedUser();
+            if (user == null || user.getRole() != Role.ROLE_CUSTOMER) {
+                throw new NotAllowedException("No authenticated customer detected", "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
+            }
+            customerId = user.getId();
+        }
         return orderRepository.getOrdersForCustomer(customerId);
     }
 
@@ -41,9 +49,17 @@ public class OrderService {
         return orderRepository.getOrdersAssignedToOperator(operatorId);
     }
 
+    public Map<Integer, List<OrderModel>> getOperatorToOrders(List<Integer> operatorIds) throws InvalidAttributesException {
+        Map<Integer, List<OrderModel>> result = new HashMap<>();
+        for (Integer id : operatorIds) {
+            result.put(id, getOrdersAssignedToOperator(id));
+        }
+        return result;
+    }
+
     public List<OrderModel> getOrdersByCriteria(List<Integer> productIds,
                                                 List<BigInteger> orderNumbers,
-                                                List<OrderStatus> orderStatuses,
+                                                List<Integer> orderStatuses,
                                                 Date bookingTimeBottom,
                                                 Date bookingTimeTop,
                                                 Boolean paid,
@@ -52,36 +68,16 @@ public class OrderService {
         return orderRepository.getOrdersByCriteria(productIds, orderNumbers, orderStatuses, bookingTimeBottom, bookingTimeTop, paid, costBottom, costTop);
     }
 
-    public List<OrderModel> getOrdersByProductIds(List<Integer> productIds) throws InvalidAttributesException {
-        return orderRepository.getOrdersByCriteria(productIds, null, null, null, null, null, null, null);
-    }
-
-    public List<OrderModel> getOrdersByOrderNumbers(List<BigInteger> orderNumbers) throws InvalidAttributesException {
-        return orderRepository.getOrdersByCriteria(null, orderNumbers, null, null, null, null, null, null);
-    }
-
-    public List<OrderModel> getOrdersByOrderStatuses(List<OrderStatus> orderStatuses) throws InvalidAttributesException {
-        return orderRepository.getOrdersByCriteria(null, null, orderStatuses, null, null, null, null, null);
-    }
-
-    public List<OrderModel> getOrdersByBookingTime(Date bookingTimeBottom, Date bookingTimeTop) throws InvalidAttributesException {
-        return orderRepository.getOrdersByCriteria(null, null, null, bookingTimeBottom, bookingTimeTop, null, null, null);
-    }
-
-    public List<OrderModel> getOrdersByPaidStatus(boolean paid) throws InvalidAttributesException {
-        return orderRepository.getOrdersByCriteria(null, null, null, null, null, paid, null, null);
-    }
-
-    public List<OrderModel> getOrdersByCost(double costBottom, double costTop) throws InvalidAttributesException {
-        return orderRepository.getOrdersByCriteria(null, null, null, null, null, null, costBottom, costTop);
+    public List<OrderModel> getAvailableOrders() {
+        return orderRepository.getAvailableOrders();
     }
 
     public OrderModel getOrderById(int orderId) throws InvalidAttributesException {
         return orderRepository.getOrderById(orderId);
     }
 
-    public List<ProductModel> getOrderedProducts(int orderId) throws InvalidAttributesException {
-        return orderRepository.getOrderedProducts(orderId);
+    public List<ProductModel> getOrderProducts(int orderId) throws InvalidAttributesException {
+        return orderRepository.getOrderProducts(orderId);
     }
 
     public ProductModel getProduct(int productId) throws InvalidAttributesException {
@@ -90,6 +86,10 @@ public class OrderService {
 
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void createOrder(OrderModel order) throws InvalidAttributesException {
+        if (order.validateData()) {
+            double productCost = order.getProducts().stream().mapToDouble(ProductModel::getPrice).sum();
+            order.setProductCost(productCost);
+        }
         BigInteger orderNumber = orderRepository.getLatestOrderNumber().add(BigInteger.ONE);
         order.setOrderNumber(orderNumber);
         int orderId = orderRepository.createOrder(order);
@@ -111,7 +111,7 @@ public class OrderService {
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_UPDATED);
     }
 
-    public void updateOrderStatus(int orderId, OrderStatus newStatus) throws InvalidAttributesException {
+    public void updateOrderStatus(int orderId, Integer newStatus) throws InvalidAttributesException {
         orderRepository.updateOrderStatus(orderId, newStatus);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_UPDATED);
     }
@@ -119,8 +119,8 @@ public class OrderService {
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void deleteOrder(int orderId) throws InvalidAttributesException {
         orderRepository.removeProductsFromOrder(orderId, null);
-        orderRepository.deleteOrder(orderId);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_DELETED);
+        orderRepository.deleteOrder(orderId);
     }
 
     public void assignProductsToOrder(int orderId, List<Integer> products) throws InvalidAttributesException {
@@ -142,7 +142,7 @@ public class OrderService {
     }
 
     public void deleteProduct(int productId) throws InvalidAttributesException, NotAllowedException {
-        if (orderRepository.countProductAssignation(productId) > 0) {
+        if (countProductAssignation(productId) > 0) {
             throw new NotAllowedException("Product can not be deleted because it is in usage", "", LocalDateTime.now(), HttpStatus.CONFLICT);
         }
         orderRepository.deleteProduct(productId);
@@ -166,7 +166,7 @@ public class OrderService {
         }
     }
 
-    public void removeOrdersFromOperator(int operatorId, List<Integer> orderIds) throws InvalidAttributesException {
+    public void removeOrdersFromOperator(List<Integer> orderIds, int operatorId) throws InvalidAttributesException {
         orderRepository.removeOrdersFromOperator(operatorId, orderIds);
     }
 }

@@ -12,5 +12,7 @@ public class ApplicationTestContextInitializer implements ApplicationContextInit
         System.setProperty("DB_PASSWORD", "1904");
         System.setProperty("WEBSOCKET_TIMEOUT", "5000");
         System.setProperty("TOKEN_DURATION", "3600");
+        System.setProperty("ADMIN_LOGIN", "");
+        System.setProperty("ADMIN_PASSWORD", "");
     }
 }

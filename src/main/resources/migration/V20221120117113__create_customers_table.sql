@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS customers(
     user_id INT8 REFERENCES users(id),
     first_name VARCHAR(255),
     last_name VARCHAR(255),
-    address VARCHAR(255)
+    address VARCHAR(255),
+    UNIQUE(user_id, first_name, last_name)
 )

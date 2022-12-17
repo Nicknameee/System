@@ -1,0 +1,1 @@
+UPDATE customers SET first_name = ?, last_name = ?, address = ? WHERE id = ?;

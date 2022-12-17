@@ -28,6 +28,8 @@ public class ProductMapper implements RowCallbackHandler {
         product.setId(rs.getInt("id"));
         product.setName(rs.getString("name"));
         product.setPrice(rs.getDouble("price"));
+        product.setAmount(rs.getInt("amount"));
+        product.setAvailable(rs.getBoolean("available"));
         Map<String, String> description = new HashMap<>();
         try {
             description = mapper.readValue(rs.getString("description"), new TypeReference<>(){});

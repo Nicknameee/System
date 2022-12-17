@@ -1,1 +1,1 @@
-INSERT INTO products_to_order(product_id, order_id) VALUES(?, ?);
+CALL assign_product(?, ?)

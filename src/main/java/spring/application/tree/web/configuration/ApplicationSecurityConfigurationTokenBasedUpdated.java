@@ -56,6 +56,7 @@ public class ApplicationSecurityConfigurationTokenBasedUpdated {
                 .authorizeRequests()
                 .antMatchers("/stomp/**").permitAll()
                 .antMatchers(HttpMethod.POST, "/login", "/logout").permitAll()
+                .antMatchers(HttpMethod.POST, "/user/create/customer").permitAll()
                 .anyRequest()
                 .authenticated()
                 .and()

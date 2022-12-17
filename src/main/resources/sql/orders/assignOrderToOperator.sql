@@ -1,1 +1,1 @@
-INSERT INTO orders_to_operator(operator_id, order_id) VALUES(?, ?);
+INSERT INTO orders_to_operator(operator_id, order_id) VALUES(?, ?) ON DUPLICATE KEY UPDATE operator_id = ?;

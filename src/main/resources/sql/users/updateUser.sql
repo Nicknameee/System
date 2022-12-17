@@ -1,0 +1,1 @@
+UPDATE users SET password = ?, timezone = ? WHERE id = ?;

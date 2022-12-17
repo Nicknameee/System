@@ -1,1 +1,1 @@
-SELECT order_number FROM orders ORDER BY booking_time DESC;
+SELECT order_number FROM order_history ORDER BY date DESC LIMIT 1;

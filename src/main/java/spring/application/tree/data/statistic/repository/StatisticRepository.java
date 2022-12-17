@@ -50,7 +50,7 @@ public class StatisticRepository {
         String addHistoryOrderTreeNodeSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/statistic/addHistoryOrderTreeNode.sql");
         log.debug("Add history tree node query: {}", addHistoryOrderTreeNodeSQL);
         try {
-            jdbcTemplate.update(addHistoryOrderTreeNodeSQL, order.getOrderNumber().toString(), mapper.writeValueAsString(order), event.getOrdinal());
+            jdbcTemplate.update(addHistoryOrderTreeNodeSQL, order.getOrderNumber(), mapper.writeValueAsString(order), event.getOrdinal(), order.getOrderNumber());
         } catch (DataAccessException | JsonProcessingException e) {
             log.debug(e.getMessage(), e);
         }

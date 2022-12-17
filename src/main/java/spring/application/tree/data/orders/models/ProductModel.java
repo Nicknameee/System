@@ -28,6 +28,11 @@ public class ProductModel {
         if (amount < 0) {
             return false;
         }
+        for (Map.Entry<String, String> property : description.entrySet()) {
+            if (property.getKey() == null || property.getValue() == null || property.getKey().isEmpty() || property.getValue().isEmpty()) {
+                return false;
+            }
+        }
         return true;
     }
 }

@@ -40,7 +40,7 @@ public class OrderModel {
         if (deliveryCost < 0) {
             return false;
         }
-        if (productCost < 0) {
+        if (productCost != null && productCost < 0) {
             return false;
         }
         if (orderStatus == null) {
@@ -52,5 +52,15 @@ public class OrderModel {
     public boolean analyzeChangesForOrderedProducts(OrderModel order) {
         return this.products.stream().map(ProductModel::getId).collect(Collectors.toList())
                 .retainAll(order.getProducts().stream().map(ProductModel::getId).collect(Collectors.toList()));
+    }
+
+    public boolean validateDeliveryData() {
+        if (deliveryAddress != null && deliveryAddress.isEmpty()) {
+            return false;
+        }
+        if (deliveryCost != null && deliveryCost < 0) {
+            return false;
+        }
+        return true;
     }
 }

@@ -1,1 +1,1 @@
-INSERT INTO products(name, price, amount, available, description) VALUES(?, ?, ?, ?, ?);
+INSERT IGNORE INTO products(name, price, amount, available, description) VALUES(?, ?, ?, ?, ?);

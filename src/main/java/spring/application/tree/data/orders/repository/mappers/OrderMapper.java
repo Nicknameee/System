@@ -23,6 +23,7 @@ public class OrderMapper implements RowCallbackHandler {
         order.setCustomerId(rs.getInt("customer_id"));
         order.setOrderNumber(new BigInteger(rs.getString("order_number")));
         order.setBookingTime(rs.getDate("booking_time"));
+        order.setDeliveryCost(rs.getDouble("delivery_cost"));
         order.setDeliveryAddress(rs.getString("delivery_address"));
         order.setProductCost(rs.getDouble("product_cost"));
         order.setPaid(rs.getBoolean("paid"));

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.buf.StringUtils;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -80,7 +81,7 @@ public class OrderRepository {
 
     public List<OrderModel> getOrdersByCriteria(List<Integer> productIds,
                                                 List<BigInteger> orderNumbers,
-                                                List<OrderStatus> orderStatuses,
+                                                List<Integer> orderStatuses,
                                                 Date bookingTimeBottom,
                                                 Date bookingTimeTop,
                                                 Boolean paid,
@@ -96,7 +97,7 @@ public class OrderRepository {
         if (bookingTimeBottom != null && bookingTimeTop != null && bookingTimeBottom.after(bookingTimeTop)) {
             exceptionText.append("Invalid booking time range, top: ").append(bookingTimeTop).append(", bottom: ").append(bookingTimeBottom);
         }
-        if (costBottom != null && costTop != null && costBottom > costTop) {
+        if (costBottom != null && costTop != null && costBottom > costTop || costBottom != null && costBottom < 0 || costTop != null && costTop < 0) {
             exceptionText.append("Invalid cost range, top: ").append(costTop).append(", bottom: ").append(costBottom);
         }
         if (!exceptionText.isEmpty()) {
@@ -111,7 +112,7 @@ public class OrderRepository {
             ordersTemplateSQL.add("orderNumbers", StringUtils.join(orderNumbers.stream().map(orderNumber -> String.format("'%s'", orderNumber.toString())).collect(Collectors.toList()), ','));
         }
         if (orderStatuses != null) {
-            ordersTemplateSQL.add("orderStatuses", StringUtils.join(orderStatuses.stream().map(orderStatus -> String.format("'%s'", orderStatus.name())).collect(Collectors.toList()), ','));
+            ordersTemplateSQL.add("orderStatuses", StringUtils.join(orderStatuses.stream().map(orderStatus -> String.format("'%s'", orderStatus)).collect(Collectors.toList()), ','));
         }
         ordersTemplateSQL.add("paid", paid);
         ordersTemplateSQL.add("bookingTimeBottom", bookingTimeBottom);
@@ -135,11 +136,31 @@ public class OrderRepository {
         return orders;
     }
 
-    public List<ProductModel> getOrderedProducts(int orderId) throws InvalidAttributesException {
+    public List<OrderModel> getAvailableOrders() {
+        String getAvailableOrdersSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/getAvailableOrders.sql");
+        String productSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/getOrderProducts.sql");
+        log.debug("Get available orders query: {}", getAvailableOrdersSQL);
+        log.debug("Product query: {}\n", productSQL);
+        List<OrderModel> orders = new ArrayList<>();
+        try {
+            jdbcTemplate.query(getAvailableOrdersSQL, new OrderMapper(orders));
+            for (OrderModel order : orders) {
+                List<ProductModel> products = new ArrayList<>();
+                jdbcTemplate.query(productSQL, new ProductMapper(products), order.getId());
+                order.setProducts(products);
+            }
+        } catch (DataAccessException e) {
+            log.debug(e.getMessage(), e);
+            return new ArrayList<>();
+        }
+        return orders;
+    }
+
+    public List<ProductModel> getOrderProducts(int orderId) throws InvalidAttributesException {
         if (orderId < 1) {
             throw new InvalidAttributesException(String.format("Invalid order ID: %s", orderId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
-        String getOrderedProductsSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/getOrderedProducts.sql");
+        String getOrderedProductsSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/getOrderProducts.sql");
         log.debug("Get ordered products query: {}", getOrderedProductsSQL);
         List<ProductModel> products = new ArrayList<>();
         try {
@@ -155,21 +176,28 @@ public class OrderRepository {
             throw new InvalidAttributesException(String.format("Invalid order ID: %s", orderId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
         String getOrderById = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/getOrderById.sql");
+        String productSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/getOrderProducts.sql");
         log.debug("Get order by ID query: {}", getOrderById);
+        log.debug("Product query: {}\n", productSQL);
         List<OrderModel> orders = new ArrayList<>();
         try {
             jdbcTemplate.query(getOrderById, new OrderMapper(orders), orderId);
+            for (OrderModel order : orders) {
+                List<ProductModel> products = new ArrayList<>();
+                jdbcTemplate.query(productSQL, new ProductMapper(products), order.getId());
+                order.setProducts(products);
+            }
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
         }
-        return orders.get(0);
+        return orders.isEmpty() ? null : orders.get(0);
     }
 
     public ProductModel getProduct(int productId) throws InvalidAttributesException {
         if (productId < 1) {
             throw new InvalidAttributesException(String.format("Invalid order ID: %s", productId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
-        String getProductSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/getProduct.sql");
+        String getProductSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/getProduct.sql");
         log.debug("Get product query: {}", getProductSQL);
         List<ProductModel> products = new ArrayList<>();
         try {
@@ -177,7 +205,7 @@ public class OrderRepository {
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
         }
-        return products.get(0);
+        return products.isEmpty() ? null : products.get(0);
     }
 
     public Integer createOrder(OrderModel order) throws InvalidAttributesException {
@@ -188,22 +216,24 @@ public class OrderRepository {
         log.debug("Create order query: {}", createOrderSQL);
         Integer orderId = null;
         try {
-            orderId = jdbcTemplate.queryForObject(createOrderSQL, Integer.class,
+            jdbcTemplate.update(createOrderSQL,
                     order.getCustomerId(),
                     order.getOrderNumber(),
                     order.getDeliveryAddress(),
                     order.getDeliveryCost(),
                     order.getProductCost(),
                     order.isPaid(),
-                    order.getOrderStatus());
+                    order.getOrderStatus().getOrdinal());
+            orderId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID();", Integer.class);
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
         return orderId;
     }
 
     public void updateOrderDeliveryDetails(OrderModel order) throws InvalidAttributesException {
-        if (!order.validateData() || order.getId() == null || order.getId() < 1) {
+        if (!order.validateDeliveryData() || order.getId() == null || order.getId() < 1) {
             throw new InvalidAttributesException(String.format("Invalid order model: %s", order), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
         String updateOrderDeliveryDetailsSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/updateOrderDeliveryDetails.sql");
@@ -215,6 +245,7 @@ public class OrderRepository {
                     order.getId());
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -228,19 +259,21 @@ public class OrderRepository {
             jdbcTemplate.update(transferOrderIntoPaidStatusSQL, OrderStatus.PAID.getOrdinal(), orderId);
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
-    public void updateOrderStatus(int orderId, OrderStatus newStatus) throws InvalidAttributesException {
+    public void updateOrderStatus(int orderId, Integer newStatus) throws InvalidAttributesException {
         if (orderId < 1) {
             throw new InvalidAttributesException(String.format("Invalid order ID: %s", orderId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
         String updateOrderStatusSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/updateOrderStatus.sql");
         log.debug("Update order status query: {}", updateOrderStatusSQL);
         try {
-            jdbcTemplate.update(updateOrderStatusSQL, newStatus.getOrdinal(), orderId);
+            jdbcTemplate.update(updateOrderStatusSQL, newStatus, orderId);
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -254,6 +287,7 @@ public class OrderRepository {
             jdbcTemplate.update(deleteOrderSQL, orderId);
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -264,10 +298,12 @@ public class OrderRepository {
         String assignProductToOrderSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/assignProductToOrder.sql");
         log.debug("Assign products query: {}", assignProductToOrderSQL);
         try {
-            List<Object[]> parameters = products.stream().map(product -> new Object[]{product, orderId}).collect(Collectors.toList());
-            jdbcTemplate.batchUpdate(assignProductToOrderSQL, parameters);
+            for (Integer productId : products) {
+                jdbcTemplate.update(assignProductToOrderSQL, orderId, productId);
+            }
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -277,14 +313,20 @@ public class OrderRepository {
         }
         ST removeProductsFromOrderSQL = PropertyResourceLoader.getSQLScriptTemplate("classpath:/sql/orders/products/removeProductsFromOrder.st");
         removeProductsFromOrderSQL.add("orderId", orderId);
-        if (productIds != null) {
-            removeProductsFromOrderSQL.add("productIds", StringUtils.join(productIds.stream().map(String::valueOf).collect(Collectors.toList()), ','));
-        }
         log.debug("Remove products from order query: {}", removeProductsFromOrderSQL.render());
         try {
-            jdbcTemplate.update(removeProductsFromOrderSQL.render());
+            if (productIds != null) {
+                for (Integer productId : productIds) {
+                    if (removeProductsFromOrderSQL.getAttribute("productId") != null) {
+                        removeProductsFromOrderSQL.remove("productId");
+                    }
+                    removeProductsFromOrderSQL.add("productId", productId);
+                    jdbcTemplate.update(removeProductsFromOrderSQL.render());
+                }
+            }
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -292,12 +334,13 @@ public class OrderRepository {
         if (!product.validateData()) {
             throw new InvalidAttributesException(String.format("Invalid product model: %s", product), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
-        String createProductSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/product/createProduct.sql");
+        String createProductSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/createProduct.sql");
         log.debug("Create product query: {}", createProductSQL);
         try {
             jdbcTemplate.update(createProductSQL, product.getName(), product.getPrice(), product.getAmount(), product.isAvailable(), new ObjectMapper().writeValueAsString(product.getDescription()));
         } catch (DataAccessException | JsonProcessingException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -305,12 +348,13 @@ public class OrderRepository {
         if (!product.validateData() || product.getId() == null || product.getId() < 1) {
             throw new InvalidAttributesException(String.format("Invalid product model: %s", product), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
-        String updateProductSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/product/updateProduct.sql");
+        String updateProductSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/updateProduct.sql");
         log.debug("Update product query: {}", updateProductSQL);
         try {
             jdbcTemplate.update(updateProductSQL, product.getPrice(), product.getAmount(), product.isAvailable(), new ObjectMapper().writeValueAsString(product.getDescription()), product.getId());
         } catch (DataAccessException | JsonProcessingException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -323,6 +367,7 @@ public class OrderRepository {
             jdbcTemplate.update(deleteProductSQL, productId);
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -344,7 +389,7 @@ public class OrderRepository {
         if (name == null || name.isEmpty()) {
             throw new InvalidAttributesException(String.format("Invalid product name: %s", name), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
-        String countProductsByNameSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/product/countProductsByName.sql");
+        String countProductsByNameSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/countProductsByName.sql");
         Integer count = null;
         try {
             count = jdbcTemplate.queryForObject(countProductsByNameSQL, Integer.class, name);
@@ -362,6 +407,8 @@ public class OrderRepository {
             if (resultString != null) {
                 result = new BigInteger(resultString);
             }
+        } catch (EmptyResultDataAccessException e) {
+            return result;
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
         }
@@ -387,9 +434,10 @@ public class OrderRepository {
         }
         String assignOrderToOperatorSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/assignOrderToOperator.sql");
         try {
-            jdbcTemplate.update(assignOrderToOperatorSQL, operatorId, orderId);
+            jdbcTemplate.update(assignOrderToOperatorSQL, operatorId, orderId, operatorId);
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -406,6 +454,7 @@ public class OrderRepository {
             jdbcTemplate.update(removeOrdersFromOperatorSQL.render());
         } catch (DataAccessException e) {
             log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 }

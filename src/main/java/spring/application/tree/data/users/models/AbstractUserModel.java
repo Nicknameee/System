@@ -42,14 +42,9 @@ public class AbstractUserModel implements UserDetails {
     private Role role;
     @Column(name = "status" , nullable = false)
     @Enumerated(EnumType.ORDINAL)
-    private Status status = Status.DISABLED;
+    private Status status = Status.ENABLED;
     @Column(name = "timezone", nullable = false)
     private String timezone;
-
-    @JsonSetter("password")
-    private void setPassword(String password) {
-        this.password = DataEncoderTool.encodeData(password);
-    }
 
     @JsonGetter("loginTime")
     private OffsetDateTime getLoginTime() {
@@ -104,7 +99,7 @@ public class AbstractUserModel implements UserDetails {
             return;
         }
         if (abstractUserModel.getPassword() != null) {
-            this.password = DataEncoderTool.encodeData(abstractUserModel.getPassword());
+            this.password = abstractUserModel.getPassword();
         }
         if (abstractUserModel.getTimezone() != null) {
             this.timezone = abstractUserModel.getTimezone();
