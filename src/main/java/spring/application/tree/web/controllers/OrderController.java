@@ -45,7 +45,7 @@ public class OrderController {
     }
 
     @PreAuthorize("hasAnyAuthority('admin::permission', 'salesman::permission')")
-    @GetMapping("/view/orders")
+    @GetMapping("/view/criteria")
     public ResponseEntity<Object> viewOrdersByCriteria(@RequestParam(required = false, value = "product_id") List<Integer> productIds,
                                                        @RequestParam(required = false, value = "order_number") List<BigInteger> orderNumbers,
                                                        @RequestParam(required = false, value = "order_status") List<Integer> orderStatuses,
@@ -61,31 +61,17 @@ public class OrderController {
     }
 
     @PreAuthorize("hasAnyAuthority('admin::permission', 'salesman::permission')")
-    @GetMapping("/available")
+    @GetMapping("/view/available")
     public ResponseEntity<Object> viewAvailableOrders() {
         List<OrderModel> orders = orderService.getAvailableOrders();
         return ResponseEntity.ok(orders);
     }
 
     @PreAuthorize("hasAnyAuthority('admin::permission', 'salesman::permission')")
-    @GetMapping("/view")
+    @GetMapping("/view/concrete")
     public ResponseEntity<Object> viewOrderById(@RequestParam("id") int id) throws InvalidAttributesException {
         OrderModel order = orderService.getOrderById(id);
         return ResponseEntity.ok(order);
-    }
-
-    @PreAuthorize("hasAnyAuthority('customer::permission', 'admin::permission', 'salesman::permission')")
-    @GetMapping("/view/products")
-    public ResponseEntity<Object> viewOrderedProducts(@RequestParam("order_id") int id) throws InvalidAttributesException {
-        List<ProductModel> products = orderService.getOrderProducts(id);
-        return ResponseEntity.ok(products);
-    }
-
-    @PreAuthorize("hasAnyAuthority('customer::permission', 'admin::permission', 'salesman::permission')")
-    @GetMapping("/view/product")
-    public ResponseEntity<Object> viewProduct(@RequestParam("product_id") int id) throws InvalidAttributesException {
-        ProductModel product = orderService.getProduct(id);
-        return ResponseEntity.ok(product);
     }
 
     @PreAuthorize("hasAuthority('customer::permission')")
@@ -141,28 +127,7 @@ public class OrderController {
     }
 
     @PreAuthorize("hasAuthority('admin::permission')")
-    @PostMapping("/product/create")
-    public ResponseEntity<Object> createProduct(@RequestBody ProductModel product) throws InvalidAttributesException {
-        orderService.createProduct(product);
-        return ResponseEntity.ok().build();
-    }
-
-    @PreAuthorize("hasAuthority('admin::permission')")
-    @PutMapping("/product/update")
-    public ResponseEntity<Object> updateProduct(@RequestBody ProductModel product) throws InvalidAttributesException {
-        orderService.updateProduct(product);
-        return ResponseEntity.ok().build();
-    }
-
-    @PreAuthorize("hasAuthority('admin::permission')")
-    @DeleteMapping("/product/delete")
-    public ResponseEntity<Object> deleteProduct(@RequestParam("product_id") int productId) throws InvalidAttributesException, NotAllowedException {
-        orderService.deleteProduct(productId);
-        return ResponseEntity.ok().build();
-    }
-
-    @PreAuthorize("hasAuthority('admin::permission')")
-    @GetMapping("/operators")
+    @GetMapping("/operators/map")
     public ResponseEntity<Object> getOperatorToOrders() {
         return ResponseEntity.ok(orderService.getOrderTakenNumberPerOperator());
     }

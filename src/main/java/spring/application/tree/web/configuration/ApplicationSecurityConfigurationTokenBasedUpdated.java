@@ -57,6 +57,8 @@ public class ApplicationSecurityConfigurationTokenBasedUpdated {
                 .antMatchers("/stomp/**").permitAll()
                 .antMatchers(HttpMethod.POST, "/login", "/logout").permitAll()
                 .antMatchers(HttpMethod.POST, "/user/create/customer").permitAll()
+                .antMatchers("/product/view/all").permitAll()
+                .antMatchers("/utility/**").permitAll()
                 .anyRequest()
                 .authenticated()
                 .and()
@@ -74,7 +76,7 @@ public class ApplicationSecurityConfigurationTokenBasedUpdated {
 
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
-        return (web) -> web.debug(true)
+        return (web) -> web.debug(false)
                 .ignoring()
                 .antMatchers();
     }

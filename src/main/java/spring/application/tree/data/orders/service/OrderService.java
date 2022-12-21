@@ -76,6 +76,10 @@ public class OrderService {
         return orderRepository.getOrderById(orderId);
     }
 
+    public List<ProductModel> getProducts() {
+        return orderRepository.getProducts();
+    }
+
     public List<ProductModel> getOrderProducts(int orderId) throws InvalidAttributesException {
         return orderRepository.getOrderProducts(orderId);
     }
@@ -98,6 +102,7 @@ public class OrderService {
         statisticService.addHistoryOrderTreeNode(order, OrderHistoryEvent.ORDER_CREATED);
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void updateOrderDeliveryDetails(OrderModel order) throws InvalidAttributesException, NotAllowedException {
         if (order.getOrderStatus() != OrderStatus.INITIATED) {
             throw new NotAllowedException("Order delivery details can not be updated, it is already being processed", "", LocalDateTime.now(), HttpStatus.CONFLICT);
@@ -106,11 +111,13 @@ public class OrderService {
         statisticService.addHistoryOrderTreeNode(order, OrderHistoryEvent.ORDER_UPDATED);
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void transferOrderIntoPaidStatus(int orderId) throws InvalidAttributesException {
         orderRepository.transferOrderIntoPaidStatus(orderId);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_UPDATED);
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void updateOrderStatus(int orderId, Integer newStatus) throws InvalidAttributesException {
         orderRepository.updateOrderStatus(orderId, newStatus);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_UPDATED);
@@ -118,17 +125,22 @@ public class OrderService {
 
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void deleteOrder(int orderId) throws InvalidAttributesException {
+        List<ProductModel> orderedProducts = getOrderProducts(orderId);
+        orderRepository.incrementProductAmount(orderedProducts.stream().map(ProductModel::getId).collect(Collectors.toList()), 1);
         orderRepository.removeProductsFromOrder(orderId, null);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_DELETED);
         orderRepository.deleteOrder(orderId);
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void assignProductsToOrder(int orderId, List<Integer> products) throws InvalidAttributesException {
         orderRepository.assignProductsToOrder(orderId, products);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_UPDATED);
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void removeProductsFromOrder(int orderId, List<Integer> productIds) throws InvalidAttributesException {
+        orderRepository.incrementProductAmount(productIds, 1);
         orderRepository.removeProductsFromOrder(orderId, productIds);
         statisticService.addHistoryOrderTreeNode(getOrderById(orderId), OrderHistoryEvent.ORDER_UPDATED);
     }
@@ -160,6 +172,7 @@ public class OrderService {
         return orderRepository.getOrderTakenNumberPerOperator();
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void assignOrderToOperator(List<Integer> orderIds, int operatorId) throws InvalidAttributesException {
         for (Integer orderId : orderIds) {
             orderRepository.assignOrderToOperator(orderId, operatorId);

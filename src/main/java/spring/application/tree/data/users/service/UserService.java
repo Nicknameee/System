@@ -153,8 +153,7 @@ public class UserService {
         userDataAccessObject.deleteCustomerByUserId(id);
     }
 
-
-
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void passOperatorOrdersToAnotherOperators(int operatorId, List<Integer> orderIds) throws InvalidAttributesException {
         final int orderPerOperatorLimit = 50;
         if (orderIds == null) {

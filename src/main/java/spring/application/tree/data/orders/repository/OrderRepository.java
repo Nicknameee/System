@@ -10,6 +10,8 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.stringtemplate.v4.ST;
 import spring.application.tree.data.exceptions.InvalidAttributesException;
 import spring.application.tree.data.orders.attributes.OrderStatus;
@@ -156,6 +158,18 @@ public class OrderRepository {
         return orders;
     }
 
+    public List<ProductModel> getProducts() {
+        String getProductsSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/getProducts.sql");
+        log.debug("Get products query: {}", getProductsSQL);
+        List<ProductModel> products = new ArrayList<>();
+        try {
+            jdbcTemplate.query(getProductsSQL, new ProductMapper(products));
+        } catch (DataAccessException e) {
+            log.error(e.getMessage(), e);
+        }
+        return products;
+    }
+
     public List<ProductModel> getOrderProducts(int orderId) throws InvalidAttributesException {
         if (orderId < 1) {
             throw new InvalidAttributesException(String.format("Invalid order ID: %s", orderId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
@@ -291,6 +305,7 @@ public class OrderRepository {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void assignProductsToOrder(int orderId, List<Integer> products) throws InvalidAttributesException {
         if (products == null || products.isEmpty() || products.stream().anyMatch(product -> product < 1) || orderId < 1) {
             throw new InvalidAttributesException(String.format("Invalid products: %s, order ID: %s", products, orderId), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
@@ -307,6 +322,23 @@ public class OrderRepository {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
+    public void incrementProductAmount(List<Integer> productIds, int amount) throws InvalidAttributesException {
+        if (productIds == null || productIds.isEmpty() || productIds.stream().anyMatch(id -> id < 1) || amount < 1) {
+            throw new InvalidAttributesException(String.format("Invalid product IDs: %s, amount: %s", productIds, amount), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
+        }
+        String incrementProductAmountSQL = PropertyResourceLoader.getSQLScript("classpath:/sql/orders/products/incrementProductAmount.sql");
+        try {
+            for (Integer productId : productIds) {
+                jdbcTemplate.update(incrementProductAmountSQL, amount, productId);
+            }
+        } catch (DataAccessException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public void removeProductsFromOrder(int orderId, List<Integer> productIds) throws InvalidAttributesException {
         if (orderId < 1 || (productIds != null && (productIds.isEmpty() || productIds.stream().anyMatch(productId -> productId < 1)))) {
             throw new InvalidAttributesException(String.format("Invalid order ID: %s, products: %s", orderId, productIds), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
@@ -442,7 +474,7 @@ public class OrderRepository {
     }
 
     public void removeOrdersFromOperator(int operatorId, List<Integer> orderIds) throws InvalidAttributesException {
-        if (operatorId < 1 || (orderIds != null && orderIds.isEmpty())) {
+        if (operatorId < 1 || (orderIds != null && (orderIds.isEmpty() || orderIds.stream().anyMatch(id -> id < 1)))) {
             throw new InvalidAttributesException(String.format("Invalid operator ID: %s, order IDs: %s", operatorId, orderIds), "", LocalDateTime.now(), HttpStatus.NOT_ACCEPTABLE);
         }
         ST removeOrdersFromOperatorSQL = PropertyResourceLoader.getSQLScriptTemplate("classpath:/sql/orders/removeOrdersFromOperator.st");
